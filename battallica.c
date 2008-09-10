@@ -299,6 +299,82 @@ int find_free_obj()
 /* object allocator code ends              */
 /*******************************************/
 
+/***************************/
+/* target list code begins */
+
+/* add an object to the list of targets... */
+struct game_obj_t *add_target(struct game_obj_t *o)
+{
+#ifdef DEBUG_TARGET_LIST
+	struct game_obj_t *t;
+
+	for (t = target_head; t != NULL; t = t->next) {
+		if (t == o) {
+			printf("Object already in target list!\n");
+			return NULL;
+		}
+	}
+	if (o->ontargetlist) {
+		printf("Object claims to be on target list, but isn't.\n");
+	}
+#endif
+
+	o->next = target_head;
+	o->prev = NULL;
+	if (target_head)
+		target_head->prev = o;
+	target_head = o;
+	o->ontargetlist = 1;
+
+	return target_head;
+}
+
+/* for debugging... */
+void print_target_list()
+{
+	struct game_obj_t *t;
+	printf("Targetlist:\n");
+	for (t=target_head; t != NULL;t=t->next) {
+		printf("%c: %d,%d\n", t->otype, t->x, t->y);
+	}
+	printf("end of list.\n");
+}
+
+/* remove an object from the target list */
+struct game_obj_t *remove_target(struct game_obj_t *t)
+{
+
+	struct game_obj_t *next;
+	if (!t)
+		return NULL;
+#ifdef DEBUG_TARGET_LIST
+	if (!t->ontargetlist) {
+		for (next = target_head; next != NULL; next = next->next) {
+			if (next == t) {
+				printf("Remove, object claims not to be on target list, but it is.\n");
+				goto do_it_anyway;
+			}
+		}
+		return NULL;
+	}
+do_it_anyway:
+#endif
+	next = t->next;
+	if (t == target_head)
+		target_head = t->next;
+	if (t->next)
+		t->next->prev = t->prev;
+	if (t->prev)
+		t->prev->next = t->next;
+	t->next = NULL;
+	t->prev = NULL;
+	t->ontargetlist=0;
+	return next;
+}
+
+/* target list code ends */
+/***************************/
+
 /*************************************/
 /* random number related code begins */
 
