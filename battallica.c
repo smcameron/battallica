@@ -183,6 +183,108 @@ static int main_da_expose(GtkWidget *w, GdkEvent *event, gpointer p)
 	return 0;
 }
 
+/*************************************/
+/* random number related code begins */
+
+
+/* get a random number between 0 and n-1... fast and loose algorithm.  */
+static inline int randomn(int n)
+{
+        /* return (int) (((random() + 0.0) / (RAND_MAX + 0.0)) * (n + 0.0)); */
+        /* floating point divide?  No. */
+        return ((random() & 0x0000ffff) * n) >> 16;
+}
+
+/* get a random number between a and b. */
+static inline int randomab(int a, int b)
+{
+        int n;
+        n = abs(a - b);
+        return (((random() & 0x0000ffff) * n) >> 16) + min(a,b);
+}
+
+/* random number related code ends   */
+/*************************************/
+
+
+/************************************/
+/* Terrain related code begins here */
+
+int mapxdim = 64;
+int mapydim = 64;
+char *terrain_map = NULL;
+
+struct terrain_descriptor_t {
+	char *name;
+	char terrain_type;
+	int color;
+};
+
+struct terrain_descriptor_t grass_terrain = 	{ "grass", '.', GREEN };
+struct terrain_descriptor_t mountain_terrain =	{ "mountains", 'm', WHITE };
+struct terrain_descriptor_t water_terrain =	{ "water", 'w', CYAN };
+struct terrain_descriptor_t forest_terrain =	{ "forest", 'f', GREEN };
+struct terrain_descriptor_t swamp_terrain =	{ "swamp", 's', DARKGREEN };
+
+struct terrain_descriptor_t *terrain_type[256];
+
+static inline int txy(int x, int y)
+{
+	return y*mapydim + x;
+}
+
+void init_terrain_types()
+{
+	int i;
+	for (i=0;i<256;i++)
+		terrain_type[i] = NULL;
+
+	terrain_type[grass_terrain.terrain_type] = &grass_terrain; 
+	terrain_type[mountain_terrain.terrain_type] = &mountain_terrain; 
+	terrain_type[water_terrain.terrain_type] = &water_terrain; 
+	terrain_type[forest_terrain.terrain_type] = &forest_terrain; 
+	terrain_type[swamp_terrain.terrain_type] = &swamp_terrain; 
+}
+
+void build_terrain()
+{
+	int i, x, y;
+	char line[mapxdim+2];
+
+	terrain_map = (char *) malloc(mapxdim * mapydim);
+	memset(terrain_map, grass_terrain.terrain_type, mapxdim*mapydim);
+
+	for (i=0;i<500;i++) {
+		x = randomn(64);
+		y = randomn(64);
+		terrain_map[txy(x,y)] = water_terrain.terrain_type;
+	}
+	for (i=0;i<500;i++) {
+		x = randomn(64);
+		y = randomn(64);
+		terrain_map[txy(x,y)] = mountain_terrain.terrain_type;
+	}
+	for (i=0;i<500;i++) {
+		x = randomn(64);
+		y = randomn(64);
+		terrain_map[txy(x,y)] = swamp_terrain.terrain_type;
+	}
+	for (i=0;i<500;i++) {
+		x = randomn(64);
+		y = randomn(64);
+		terrain_map[txy(x,y)] = forest_terrain.terrain_type;
+	}
+
+	for (y = 0; y < mapydim; y++) {
+		strncpy(line, &terrain_map[txy(0,y)], mapxdim);
+		line[mapxdim] = '\0';
+		printf("%s\n", line);
+	}
+}
+
+/* Terrain related code ends here   */
+/************************************/
+
 /**********************************/
 /* keyboard handling stuff begins */
 
@@ -524,6 +626,8 @@ int main(int argc, char *argv[])
 	gtk_init (&argc, &argv);
 
 	init_keymap();
+	init_terrain_types();
+	build_terrain();
 
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);		
 	gtk_container_set_border_width (GTK_CONTAINER (window), 0);
