@@ -67,6 +67,7 @@ GtkWidget *window;
 GdkGC *gc = NULL;               /* our graphics context. */
 GtkWidget *main_da;             /* main drawing area. */
 gint timer_tag;  
+int fullscreen = 0;
 
 float xscale_screen;
 float yscale_screen;
@@ -389,6 +390,28 @@ void init_keymap()
 
 static gint key_press_cb(GtkWidget* widget, GdkEventKey* event, gpointer data)
 {
+	enum keyaction ka;
+        if ((event->keyval & 0xff00) == 0) 
+                ka = keymap[event->keyval];
+        else
+                ka = ffkeymap[event->keyval & 0x00ff];
+
+        switch (ka) {
+        case keyfullscreen: {
+			if (fullscreen) {
+				gtk_window_unfullscreen(GTK_WINDOW(window));
+				fullscreen = 0;
+				/* configure_event takes care of resizing drawing area, etc. */
+			} else {
+				gtk_window_fullscreen(GTK_WINDOW(window));
+				fullscreen = 1;
+				/* configure_event takes care of resizing drawing area, etc. */
+			}
+			return TRUE;
+		}
+	default:
+		break;
+	}
 	return FALSE;
 }
 
