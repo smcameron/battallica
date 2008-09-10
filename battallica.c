@@ -34,6 +34,58 @@
 
 #define SCREEN_WIDTH 800        /* window width, in pixels */
 #define SCREEN_HEIGHT 600       /* window height, in pixels */
+#define MAXOBJS 8500  		/* max objects in the game */
+
+/*********************************/
+/* Game object stuff starts here */
+
+struct game_obj_t;
+/* some function pointers which game_obj_t's may have */
+typedef void obj_move_func(struct game_obj_t *o);               /* moves and object, called once per frame */
+typedef void obj_draw_func(struct game_obj_t *o, GtkWidget *w); /* draws object, called 1/frame, if onscreen */
+typedef void obj_destroy_func(struct game_obj_t *o);            /* called when an object is killed */
+
+struct game_obj_t {
+	int number; /* offset into go game_object array */
+        obj_move_func *move;
+        obj_draw_func *draw;
+        obj_destroy_func *destroy;
+        int x, y;                       /* current position, in game coords */
+        int vx, vy;                     /* velocity */
+	int bearing;
+        int color;                      /* initial color */
+        int alive;                      /* alive?  Or dead? */
+        int otype;                      /* object type */
+        // union type_specific_data tsd;   /* the Type Specific Data for this object */
+        // struct health_data health;
+        struct game_obj_t *next;        /* These pointers, next, prev, are used to construct the */
+        struct game_obj_t *prev;        /* target list, the list of things which may be hit by other things */
+        int ontargetlist;               /* this list keeps of from having to scan the entire object list. */
+};
+
+struct game_obj_t *target_head = NULL;	/* The target list. */
+
+
+struct game_obj_t *the_player = NULL;
+struct game_obj_t *the_enemy = NULL;
+
+int highest_object_number = 2;
+
+/* Game object stuff ends here */
+/*******************************/
+
+struct viewport_t {
+	int x, y;
+	int vx, vy;
+};
+
+struct game_state_t {
+	struct viewport_t vp;
+	int lives;
+	int nobjs;
+	int score;
+	struct game_obj_t go[MAXOBJS];
+} game_state;
 
 typedef void line_drawing_function(GdkDrawable *drawable,
          GdkGC *gc, gint x1, gint y1, gint x2, gint y2);
@@ -177,15 +229,78 @@ void unscaled_bright_line(GdkDrawable *drawable,
 	gdk_draw_line(drawable, gc, x1+dx,y1+dy,x2+dx,y2+dy);
 }
 
-static int main_da_expose(GtkWidget *w, GdkEvent *event, gpointer p)
+/*******************************************/
+/* object allocator code begins            */
+
+/* object allocation algorithm uses a bit per object to indicate */
+/* free/allocated... how many 32 bit blocks do we need?  NBITBLOCKS. */
+/* 5, 2^5 = 32, 32 bits per int. */
+
+#define NBITBLOCKS ((MAXOBJS >> 5) + 1) 
+
+unsigned int free_obj_bitmap[NBITBLOCKS] = {0}; /* bitmaps for object allocater free/allocated status */
+
+static inline void clearbit(unsigned int *value, unsigned char bit)
 {
-	wwvi_draw_line(w->window, gc, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-	return 0;
+	*value &= ~(1 << bit);
 }
+
+int find_free_obj()
+{
+	int i, j, answer;
+	unsigned int block;
+
+	/* this might be optimized by find_first_zero_bit, or whatever */
+	/* it's called that's in the linux kernel.  But, it's pretty */
+	/* fast as is, and this is portable without writing asm code. */
+	/* Er, portable, except for assuming an int is 32 bits. */
+
+	for (i=0;i<NBITBLOCKS;i++) {
+		if (free_obj_bitmap[i] == 0xffffffff) /* is this block full?  continue. */
+			continue;
+
+		/* I tried doing a preliminary binary search using bitmasks to figure */
+		/* which byte in block contains a free slot so that the for loop only */
+		/* compared 8 bits, rather than up to 32.  This resulted in a performance */
+		/* drop, (according to the gprof) perhaps contrary to intuition.  My guess */
+		/* is branch misprediction hurt performance in that case.  Just a guess though. */
+
+		/* undoubtedly the best way to find the first empty bit in an array of ints */
+		/* is some custom ASM code.  But, this is portable, and seems fast enough. */
+		/* profile says we spend about 3.8% of time in here. */
+	
+		/* Not full. There is an empty slot in this block, find it. */
+		block = free_obj_bitmap[i];			
+		for (j=0;j<32;j++) {
+			if (block & 0x01) {	/* is bit j set? */
+				block = block >> 1;
+				continue;	/* try the next bit. */
+			}
+
+			/* Found free bit, bit j.  Set it, marking it non free.  */
+			free_obj_bitmap[i] |= (1 << j);
+			answer = (i * 32 + j);	/* return the corresponding array index, if in bounds. */
+			if (answer < MAXOBJS) {
+				if (game_state.go[answer].next != NULL || game_state.go[answer].prev != NULL ||
+					game_state.go[answer].ontargetlist) {
+						printf("T%c ", game_state.go[answer].otype);
+				}
+				game_state.go[answer].ontargetlist=0;
+				if (answer > highest_object_number)
+					highest_object_number = answer;
+				return answer;
+			}
+			return -1;
+		}
+	}
+	return -1;
+}
+
+/* object allocator code ends              */
+/*******************************************/
 
 /*************************************/
 /* random number related code begins */
-
 
 /* get a random number between 0 and n-1... fast and loose algorithm.  */
 static inline int randomn(int n)
@@ -209,7 +324,7 @@ static inline int randomab(int a, int b)
 
 /************************************/
 /* Terrain related code begins here */
-
+int mapsquarewidth = (SCREEN_HEIGHT / 8);
 int mapxdim = 64;
 int mapydim = 64;
 char *terrain_map = NULL;
@@ -249,7 +364,7 @@ void init_terrain_types()
 void build_terrain()
 {
 	int i, x, y;
-	char line[mapxdim+2];
+	char *line;
 
 	terrain_map = (char *) malloc(mapxdim * mapydim);
 	memset(terrain_map, grass_terrain.terrain_type, mapxdim*mapydim);
@@ -275,11 +390,13 @@ void build_terrain()
 		terrain_map[txy(x,y)] = forest_terrain.terrain_type;
 	}
 
+	line = (char *) malloc(mapxdim + 2);
 	for (y = 0; y < mapydim; y++) {
 		strncpy(line, &terrain_map[txy(0,y)], mapxdim);
 		line[mapxdim] = '\0';
 		printf("%s\n", line);
 	}
+	free(line);
 }
 
 /* Terrain related code ends here   */
@@ -601,6 +718,12 @@ void really_quit()
 		(0.0 + nframes) / (0.0 + end_time.tv_sec - start_time.tv_sec));
 	// destroy_event(window, NULL);
 	exit(1); // probably bad form... oh well.
+}
+
+static int main_da_expose(GtkWidget *w, GdkEvent *event, gpointer p)
+{
+	wwvi_draw_line(w->window, gc, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+	return 0;
 }
 
 gint advance_game(gpointer data)
