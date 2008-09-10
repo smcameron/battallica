@@ -68,6 +68,7 @@ GdkGC *gc = NULL;               /* our graphics context. */
 GtkWidget *main_da;             /* main drawing area. */
 gint timer_tag;  
 int fullscreen = 0;
+int in_the_process_of_quitting = 0;
 
 float xscale_screen;
 float yscale_screen;
@@ -409,6 +410,8 @@ static gint key_press_cb(GtkWidget* widget, GdkEventKey* event, gpointer data)
 			}
 			return TRUE;
 		}
+	case keyquit:	in_the_process_of_quitting = !in_the_process_of_quitting;
+			break;
 	default:
 		break;
 	}
@@ -488,12 +491,24 @@ static void destroy(GtkWidget *widget, gpointer data)
     gtk_main_quit ();
 }
 
+void really_quit()
+{
+	gettimeofday(&end_time, NULL);
+	printf("%d frames / %d seconds, %g frames/sec\n",
+		nframes, (int) (end_time.tv_sec - start_time.tv_sec),
+		(0.0 + nframes) / (0.0 + end_time.tv_sec - start_time.tv_sec));
+	// destroy_event(window, NULL);
+	exit(1); // probably bad form... oh well.
+}
+
 gint advance_game(gpointer data)
 {
 	gdk_threads_enter();
 	gtk_widget_queue_draw(main_da);
 	nframes++;
 	gdk_threads_leave();
+	if (in_the_process_of_quitting)
+		really_quit();
 	return TRUE;
 }
 
