@@ -964,14 +964,52 @@ static inline int onscreen(struct game_obj_t *o)
 		o->y <= game_state.vp.y + game_state.vp.height);
 }
 
+static int generic_draw_terrain(GtkWidget *w, char t, int x, int y)
+{
+        gdk_gc_set_foreground(gc, &huex[terrain_type[t]->color]);
+	wwvi_draw_rectangle(w->window, gc, 0, x+1, y+1, mapsquarewidth-2, mapsquarewidth-2);
+	wwvi_draw_line(w->window, gc, x+1, y+1, x+mapsquarewidth-2, y+mapsquarewidth-2);
+	wwvi_draw_line(w->window, gc, x+1, y+mapsquarewidth-2, x+mapsquarewidth-2, y+1);
+}
+ 
 static int main_da_expose(GtkWidget *w, GdkEvent *event, gpointer p)
 {
-	int tx, ty;
-	int i;
+	int i, tleft, tright, ttop, tbottom, tx, ty, t_x, t_y;
 	struct viewport_t *vp = &game_state.vp;
+
+	tleft = game_state.vp.x / mapsquarewidth;
+	ttop = game_state.vp.y / mapsquarewidth;
+	// printf("left=%d, top=%d\n", tleft, ttop);
+
+	tx = tleft * mapsquarewidth + game_state.vp.x % (mapxdim * mapsquarewidth);
+	ty = ttop * mapsquarewidth + game_state.vp.y % (mapydim * mapsquarewidth);
+	// printf("tx=%d,ty=%d\n", tx, ty);
+
+	t_y = ttop;
+	for (ty = ttop * mapsquarewidth; ty < vp->y + vp->height; ty += mapsquarewidth) {
+		t_x = tleft;
+		if (t_y < 0) {
+			t_y++;
+			continue;
+		}
+		for (tx = tleft * mapsquarewidth; tx < vp->x + vp->width; tx += mapsquarewidth) {
+			if (t_x < 0) {
+				t_x++;
+				continue;
+			}
+			generic_draw_terrain(w, terrain_map[txy(t_x, t_y)], tx - vp->x, ty - vp->y);
+			t_x++;
+			if (t_x >= mapydim)
+				break;
+		}
+		t_y++;
+		if (t_y >= mapydim)
+			break;
+	}
+	
         gdk_gc_set_foreground(gc, &huex[WHITE]);
-	wwvi_draw_rectangle(w->window, gc, 0, 
-			vp->xoffset, vp->yoffset, vp->width, vp->height);
+	// wwvi_draw_rectangle(w->window, gc, 0, 
+	//		vp->xoffset, vp->yoffset, vp->width, vp->height);
 
 	for (i=0;i<=highest_object_number;i++) {
 		if (!game_state.go[i].alive)
