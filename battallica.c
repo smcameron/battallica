@@ -53,10 +53,38 @@ struct my_point_t {
 
 struct my_point_t player_points[] = {
 	/* Just a triangle for now. */
-	{ 0, -20 },
-	{-10, 20 },
-	{ 10, 20 },
-	{ 0, -20 },
+	{ 0, -50 },
+	{ -5, -20 },
+	{ -15, -5 },
+	{ -35, 10 },
+	{-30, 20 },
+	{-10, 16 },
+	{-10, 25 },
+	{-20, 32 },
+	{-20, 40 },
+	{ -5, 36 },
+	{ -5, -25 },
+	{ 0, -40 }, 
+	{ -3, -30 }, 
+	{ -0, -20 }, 
+	{ 3, -30 }, 
+	{ 0, -40 }, 
+	{ 5, -25 },
+	{  5, 36 },
+	{  0, 36 },
+	{  0, 20 },
+	{  0, 36 },
+	{  -5, 36 },
+	{  5, 36 },
+	{ 20, 40 },
+	{ 20, 32 },
+	{ 10, 25 },
+	{ 10, 16 },
+	{ 30, 20 },
+	{ 35, 10 },
+	{ 15, -5 },
+	{ 5, -20 },
+	{ 0, -50 },
 };
 
 
@@ -473,7 +501,7 @@ struct terrain_descriptor_t {
 struct terrain_descriptor_t grass_terrain = 	{ "grass", '.', GREEN };
 struct terrain_descriptor_t mountain_terrain =	{ "mountains", 'm', WHITE };
 struct terrain_descriptor_t water_terrain =	{ "water", 'w', CYAN };
-struct terrain_descriptor_t forest_terrain =	{ "forest", 'f', GREEN };
+struct terrain_descriptor_t forest_terrain =	{ "forest", 'f', ORANGE };
 struct terrain_descriptor_t swamp_terrain =	{ "swamp", 's', DARKGREEN };
 
 struct terrain_descriptor_t *terrain_type[256];
@@ -660,7 +688,7 @@ void init_player()
 		mapxdim * mapsquarewidth / 2, 
 		mapydim * mapsquarewidth / 2,
 		0, -9, player_move, generic_draw,
-		WHITE, &player_vect, 1, OBJ_TYPE_PLAYER, 1);
+		YELLOW, &player_vect, 1, OBJ_TYPE_PLAYER, 1);
 }
 
 /**********************************/
@@ -1007,8 +1035,8 @@ static int generic_draw_terrain(GtkWidget *w, char t, int x, int y)
 	wwvi_draw_rectangle(w->window, gc, 0, x+1, y+1, mapsquarewidth-2, mapsquarewidth-2);
 	if (x < 0 || y < 0)
 		return;
-	wwvi_draw_line(w->window, gc, x+1, y+1, x+mapsquarewidth-2, y+mapsquarewidth-2);
-	wwvi_draw_line(w->window, gc, x+1, y+mapsquarewidth-2, x+mapsquarewidth-2, y+1);
+	wwvi_draw_line(w->window, gc, x+30, y+30, x+mapsquarewidth-30, y+mapsquarewidth-30);
+	wwvi_draw_line(w->window, gc, x+30, y+mapsquarewidth-30, x+mapsquarewidth-30, y+30);
 }
  
 static int main_da_expose(GtkWidget *w, GdkEvent *event, gpointer p)
