@@ -36,6 +36,40 @@
 #define SCREEN_HEIGHT 600       /* window height, in pixels */
 #define MAXOBJS 8500  		/* max objects in the game */
 
+
+struct my_point_t {
+	short x,y;
+};
+
+#define NPOINTS(x) (sizeof(x) / sizeof(x[0]))
+
+struct my_point_t player_points[] = {
+	/* Just a triangle for now. */
+	{ 0, -20 },
+	{-10, 20 },
+	{ 10, 20 },
+	{ 0, -20 },
+};
+
+
+/* Just a grouping of arrays of points with the number of points in the array */
+struct my_vect_obj {
+	int npoints;
+	struct my_point_t *p;	
+};
+
+/* contains instructions on how to draw all the objects */
+struct my_vect_obj player_vect;
+
+#define INIT_VECT(x, y) \
+	x.p = y; \
+	x.npoints = NPOINTS(y)
+	
+void init_vects()
+{
+	INIT_VECT(player_vect, player_points);
+}
+
 /*********************************/
 /* Game object stuff starts here */
 
@@ -872,6 +906,8 @@ int main(int argc, char *argv[])
 
 	init_keymap();
 	init_terrain_types();
+	init_vects();
+
 	build_terrain();
 
 	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);		
