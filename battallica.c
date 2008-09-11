@@ -32,6 +32,9 @@
 #include <gdk/gdkkeysyms.h>
 
 
+#define MAX_PLAYER_VX (10)
+#define MAX_PLAYER_VY (MAX_PLAYER_VX)
+
 #define SCREEN_WIDTH 800        /* window width, in pixels */
 #define SCREEN_HEIGHT 600       /* window height, in pixels */
 #define MAXOBJS 8500  		/* max objects in the game */
@@ -634,7 +637,7 @@ void init_player()
 	the_player = add_generic_object(
 		mapxdim * mapsquarewidth / 2, 
 		mapydim * mapsquarewidth / 2,
-		0, -4, player_move, generic_draw,
+		0, -9, player_move, generic_draw,
 		WHITE, &player_vect, 1, OBJ_TYPE_PLAYER, 1);
 }
 
@@ -867,6 +870,18 @@ static gint key_press_cb(GtkWidget* widget, GdkEventKey* event, gpointer data)
 		}
 	case keyquit:	in_the_process_of_quitting = !in_the_process_of_quitting;
 			break;
+	case keyleft:	if (the_player->vx > -MAX_PLAYER_VX)
+				the_player->vx--;
+			break;
+	case keyright:	if (the_player->vx < MAX_PLAYER_VX)
+				the_player->vx++;
+			break;
+	case keyup:	if (the_player->vy > -MAX_PLAYER_VY)
+				the_player->vy--;
+			break;
+	case keydown:	if (the_player->vy < MAX_PLAYER_VY)
+				the_player->vy++;
+			break;
 	default:
 		break;
 	}
@@ -1050,7 +1065,7 @@ void move_viewport()
 
 	if (vp->x < desiredx - 10) {
 		if (vp->vx > 0)
-			vp->vx = v->vx + 3;
+			vp->vx = v->vx + 10;
 		else
 			vp->vx = 3;
 	} else if (vp->x < desiredx) {
@@ -1060,7 +1075,7 @@ void move_viewport()
 			vp->vx = 1;
 	} else if (vp->x > desiredx + 10) {
 		if (vp->vx < 0)
-			vp->vx = v->vx - 3;
+			vp->vx = v->vx - 10;
 		else 
 			vp->vx = -3;
 	} else if (vp->x > desiredx) {
@@ -1074,7 +1089,7 @@ void move_viewport()
 
 	if (vp->y < desiredy - 10) {
 		if (vp->vy > 0)
-			vp->vy = v->vy + 3;
+			vp->vy = v->vy + 10;
 		else
 			vp->vy = 3;
 	} else if (vp->y < desiredy) {
@@ -1084,7 +1099,7 @@ void move_viewport()
 			vp->vy = 1;
 	} else if (vp->y > desiredy + 10) {
 		if (vp->vy < 0)
-			vp->vy = v->vy - 3;
+			vp->vy = v->vy - 10;
 		else 
 			vp->vy = -3;
 	} else if (vp->y > desiredy) {
