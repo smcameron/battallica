@@ -397,6 +397,52 @@ static inline int randomab(int a, int b)
 /* random number related code ends   */
 /*************************************/
 
+void generic_destroy_func(struct game_obj_t *o)
+{
+	/* so far, nothing needs to be done in this. */
+	return;
+}
+
+/*****************************/
+/* Object adding code begins */
+
+static struct game_obj_t *add_generic_object(int x, int y, int vx, int vy,
+	obj_move_func *move_func,
+	obj_draw_func *draw_func,
+	int color, 
+	// struct my_vect_obj *vect, 
+	int target,  /* can this object be a target? hit by laser, etc? */
+	char otype, 
+	int alive)
+{
+	int j;
+	struct game_obj_t *o;
+
+	j = find_free_obj();
+	if (j < 0)
+		return NULL;
+	o = &game_state.go[j];
+	o->x = x;
+	o->y = y;
+	o->vx = vx;
+	o->vy = vy;
+	o->move = move_func;
+	o->draw = draw_func;
+	o->destroy = generic_destroy_func;
+	o->color = color;
+	if (target)
+		add_target(o);
+	else {
+		o->prev = NULL;
+		o->next = NULL;
+	}
+	// o->v = vect;
+	o->otype = otype;
+	o->alive = alive;
+	return o;
+}
+/* Object adding code ends */
+/*****************************/
 
 /************************************/
 /* Terrain related code begins here */
