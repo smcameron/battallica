@@ -457,99 +457,6 @@ static inline int randomab(int a, int b)
 /* random number related code ends   */
 /*************************************/
 
-void generic_destroy_func(struct game_obj_t *o)
-{
-	/* so far, nothing needs to be done in this. */
-	return;
-}
-
-/* this is what can draw a list of line segments with line
- * breaks and color changes...  This gets called quite a lot,
- * so try to make sure it's fast.  There is an inline version
- * of this in draw_objs(), btw. 
- */
-void generic_draw(struct game_obj_t *o, GtkWidget *w)
-{
-	int j;
-	int x1, y1, x2, y2;
-	
-	int vpx, vpy;
-
-	vpx = game_state.vp.x;
-	vpy = game_state.vp.y;
-
-	gdk_gc_set_foreground(gc, &huex[o->color]);
-	x1 = o->x + o->v->p[0].x - vpx;
-	y1 = o->y + o->v->p[0].y - vpy;  
-	for (j=0;j<o->v->npoints-1;j++) {
-		if (o->v->p[j+1].x == LINE_BREAK) { /* Break in the line segments. */
-			j+=2;
-			x1 = o->x + o->v->p[j].x - vpx;
-			y1 = o->y + o->v->p[j].y - vpy;  
-		}
-		if (o->v->p[j].x == COLOR_CHANGE) {
-			gdk_gc_set_foreground(gc, &huex[o->v->p[j].y]);
-			j+=1;
-			x1 = o->x + o->v->p[j].x - vpx;
-			y1 = o->y + o->v->p[j].y - vpy;  
-		}
-		x2 = o->x + o->v->p[j+1].x - vpx; 
-		y2 = o->y + o->v->p[j+1].y - vpy;
-		if (x1 > 0 && x2 > 0)
-			wwvi_draw_line(w->window, gc, x1, y1, x2, y2); 
-		x1 = x2;
-		y1 = y2;
-	}
-}
-
-void player_move(struct game_obj_t *o)
-{
-	o->x += o->vx;
-	o->y += o->vy;
-}
-
-
-/*****************************/
-/* Object adding code begins */
-
-static struct game_obj_t *add_generic_object(int x, int y, int vx, int vy,
-	obj_move_func *move_func,
-	obj_draw_func *draw_func,
-	int color, 
-	struct my_vect_obj *vect, 
-	int target,  /* can this object be a target? hit by laser, etc? */
-	char otype, 
-	int alive)
-{
-	int j;
-	struct game_obj_t *o;
-
-	j = find_free_obj();
-	if (j < 0)
-		return NULL;
-	o = &game_state.go[j];
-	o->x = x;
-	o->y = y;
-	o->vx = vx;
-	o->vy = vy;
-	o->move = move_func;
-	o->draw = draw_func;
-	o->destroy = generic_destroy_func;
-	o->color = color;
-	if (target)
-		add_target(o);
-	else {
-		o->prev = NULL;
-		o->next = NULL;
-	}
-	o->v = vect;
-	o->otype = otype;
-	o->alive = alive;
-	return o;
-}
-/* Object adding code ends */
-/*****************************/
-
 /************************************/
 /* Terrain related code begins here */
 int mapsquarewidth = (SCREEN_HEIGHT / 8);
@@ -629,6 +536,121 @@ void build_terrain()
 
 /* Terrain related code ends here   */
 /************************************/
+
+
+void generic_destroy_func(struct game_obj_t *o)
+{
+	/* so far, nothing needs to be done in this. */
+	return;
+}
+
+/* this is what can draw a list of line segments with line
+ * breaks and color changes...  This gets called quite a lot,
+ * so try to make sure it's fast.  There is an inline version
+ * of this in draw_objs(), btw. 
+ */
+void generic_draw(struct game_obj_t *o, GtkWidget *w)
+{
+	int j;
+	int x1, y1, x2, y2;
+	
+	int vpx, vpy;
+
+	vpx = game_state.vp.x;
+	vpy = game_state.vp.y;
+
+	gdk_gc_set_foreground(gc, &huex[o->color]);
+	x1 = o->x + o->v->p[0].x - vpx;
+	y1 = o->y + o->v->p[0].y - vpy;  
+	for (j=0;j<o->v->npoints-1;j++) {
+		if (o->v->p[j+1].x == LINE_BREAK) { /* Break in the line segments. */
+			j+=2;
+			x1 = o->x + o->v->p[j].x - vpx;
+			y1 = o->y + o->v->p[j].y - vpy;  
+		}
+		if (o->v->p[j].x == COLOR_CHANGE) {
+			gdk_gc_set_foreground(gc, &huex[o->v->p[j].y]);
+			j+=1;
+			x1 = o->x + o->v->p[j].x - vpx;
+			y1 = o->y + o->v->p[j].y - vpy;  
+		}
+		x2 = o->x + o->v->p[j+1].x - vpx; 
+		y2 = o->y + o->v->p[j+1].y - vpy;
+		if (x1 > 0 && x2 > 0)
+			wwvi_draw_line(w->window, gc, x1, y1, x2, y2); 
+		x1 = x2;
+		y1 = y2;
+	}
+}
+
+void player_move(struct game_obj_t *o)
+{
+	o->x += o->vx;
+	o->y += o->vy;
+
+	if (o->x < 0) {
+		o->x = 0;
+		if (o->vx < 0)
+			o->vx = 0;
+	}
+	if (o->x > mapxdim*mapsquarewidth) {
+		o->x = mapxdim*mapsquarewidth;
+		if (o->vx > 0)
+			o->vx = 0;
+	}
+	if (o->y < 0) {
+		o->y = 0;
+		if (o->vy < 0)
+			o->vy = 0;
+	}
+	if (o->y > mapydim*mapsquarewidth) {
+		o->y = mapydim*mapsquarewidth;
+		if (o->vy > 0)
+			o->vy = 0;
+	}
+}
+
+
+/*****************************/
+/* Object adding code begins */
+
+static struct game_obj_t *add_generic_object(int x, int y, int vx, int vy,
+	obj_move_func *move_func,
+	obj_draw_func *draw_func,
+	int color, 
+	struct my_vect_obj *vect, 
+	int target,  /* can this object be a target? hit by laser, etc? */
+	char otype, 
+	int alive)
+{
+	int j;
+	struct game_obj_t *o;
+
+	j = find_free_obj();
+	if (j < 0)
+		return NULL;
+	o = &game_state.go[j];
+	o->x = x;
+	o->y = y;
+	o->vx = vx;
+	o->vy = vy;
+	o->move = move_func;
+	o->draw = draw_func;
+	o->destroy = generic_destroy_func;
+	o->color = color;
+	if (target)
+		add_target(o);
+	else {
+		o->prev = NULL;
+		o->next = NULL;
+	}
+	o->v = vect;
+	o->otype = otype;
+	o->alive = alive;
+	return o;
+}
+/* Object adding code ends */
+/*****************************/
 
 void init_player()
 {
@@ -983,6 +1005,8 @@ static int generic_draw_terrain(GtkWidget *w, char t, int x, int y)
 {
         gdk_gc_set_foreground(gc, &huex[terrain_type[t]->color]);
 	wwvi_draw_rectangle(w->window, gc, 0, x+1, y+1, mapsquarewidth-2, mapsquarewidth-2);
+	if (x < 0 || y < 0)
+		return;
 	wwvi_draw_line(w->window, gc, x+1, y+1, x+mapsquarewidth-2, y+mapsquarewidth-2);
 	wwvi_draw_line(w->window, gc, x+1, y+mapsquarewidth-2, x+mapsquarewidth-2, y+1);
 }
