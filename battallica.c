@@ -634,7 +634,7 @@ void init_player()
 	the_player = add_generic_object(
 		mapxdim * mapsquarewidth / 2, 
 		mapydim * mapsquarewidth / 2,
-		0, -3, player_move, generic_draw,
+		0, -4, player_move, generic_draw,
 		WHITE, &player_vect, 1, OBJ_TYPE_PLAYER, 1);
 }
 
@@ -984,6 +984,82 @@ static int main_da_expose(GtkWidget *w, GdkEvent *event, gpointer p)
 
 void move_viewport()
 {
+	struct game_obj_t *v = game_state.vp.obj;
+	struct viewport_t *vp = &game_state.vp;
+	int desiredx, desiredy;
+
+	if (v->vx > 8)
+		desiredx = v->x - SCREEN_WIDTH/4;
+	else if (v->vx > 3)
+		desiredx = v->x - SCREEN_WIDTH/3;
+	else if (v->vx < -3)
+		desiredx = v->x - 2*SCREEN_WIDTH/3;
+	else if (v->vx < -8)
+		desiredx = v->x - 3*SCREEN_WIDTH/4;
+	else
+		desiredx = v->x - SCREEN_WIDTH/2;
+
+	if (v->vy > 8)
+		desiredy = v->y - SCREEN_HEIGHT/4;
+	else if (v->vy > 3)
+		desiredy = v->y - SCREEN_HEIGHT/3;
+	else if (v->vy < -3)
+		desiredy = v->y - 2*SCREEN_HEIGHT/3;
+	else if (v->vy < -8)
+		desiredy = v->y - 3*SCREEN_HEIGHT/4;
+	else
+		desiredy = v->y - SCREEN_HEIGHT/2;
+
+	if (vp->x < desiredx - 10) {
+		if (vp->vx > 0)
+			vp->vx = v->vx + 3;
+		else
+			vp->vx = 3;
+	} else if (vp->x < desiredx) {
+		if (vp->vx > 0)
+			vp->vx = v->vx + 1;
+		else
+			vp->vx = 1;
+	} else if (vp->x > desiredx + 10) {
+		if (vp->vx < 0)
+			vp->vx = v->vx - 3;
+		else 
+			vp->vx = -3;
+	} else if (vp->x > desiredx) {
+		if (vp->vx < 0)
+			vp->vx = v->vx - 1;
+		else 
+			vp->vx = -1;
+	} else {
+		vp->vx = v->vx;
+	}
+
+	if (vp->y < desiredy - 10) {
+		if (vp->vy > 0)
+			vp->vy = v->vy + 3;
+		else
+			vp->vy = 3;
+	} else if (vp->y < desiredy) {
+		if (vp->vy > 0)
+			vp->vy = v->vy + 1;
+		else
+			vp->vy = 1;
+	} else if (vp->y > desiredy + 10) {
+		if (vp->vy < 0)
+			vp->vy = v->vy - 3;
+		else 
+			vp->vy = -3;
+	} else if (vp->y > desiredy) {
+		if (vp->vy < 0)
+			vp->vy = v->vy - 1;
+		else 
+			vp->vy = -1;
+	} else {
+		vp->vy = v->vy;
+	}
+
+	vp->x += vp->vx;
+	vp->y += vp->vy;
 }
 
 gint advance_game(gpointer data)
