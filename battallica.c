@@ -36,6 +36,11 @@
 #define SCREEN_HEIGHT 600       /* window height, in pixels */
 #define MAXOBJS 8500  		/* max objects in the game */
 
+#define OBJ_TYPE_PLAYER 'p'
+
+/* special values to do with drawing shapes. */
+#define LINE_BREAK (-9999)
+#define COLOR_CHANGE (-9998) /* note, color change can ONLY follow LINE_BREAK */
 
 struct my_point_t {
 	short x,y;
@@ -84,6 +89,7 @@ struct game_obj_t {
         obj_move_func *move;
         obj_draw_func *draw;
         obj_destroy_func *destroy;
+	struct my_vect_obj *v;
         int x, y;                       /* current position, in game coords */
         int vx, vy;                     /* velocity */
 	int bearing;
@@ -103,23 +109,40 @@ struct game_obj_t *target_head = NULL;	/* The target list. */
 struct game_obj_t *the_player = NULL;
 struct game_obj_t *the_enemy = NULL;
 
-int highest_object_number = 2;
+int highest_object_number = 0;
 
 /* Game object stuff ends here */
 /*******************************/
 
 struct viewport_t {
+	int xoffset, yoffset;
 	int x, y;
 	int vx, vy;
+	int width, height;
+	struct game_obj_t *obj;
 };
 
 struct game_state_t {
 	struct viewport_t vp;
 	int lives;
-	int nobjs;
 	int score;
 	struct game_obj_t go[MAXOBJS];
 } game_state;
+
+void init_game_state(struct game_obj_t *viewer)
+{
+	game_state.vp.obj = viewer;
+	game_state.vp.x = viewer->x - SCREEN_WIDTH/2;
+	game_state.vp.y = viewer->y - SCREEN_HEIGHT/2;
+	game_state.vp.vx = viewer->vx;
+	game_state.vp.vy = viewer->vy;
+	game_state.vp.xoffset = 10;
+	game_state.vp.yoffset = 10;
+	game_state.vp.width = SCREEN_WIDTH - (game_state.vp.xoffset * 2);
+	game_state.vp.height = SCREEN_HEIGHT - (game_state.vp.yoffset * 2);
+	game_state.lives = 3;
+	game_state.score = 0;
+}
 
 typedef void line_drawing_function(GdkDrawable *drawable,
          GdkGC *gc, gint x1, gint y1, gint x2, gint y2);
@@ -437,6 +460,52 @@ void generic_destroy_func(struct game_obj_t *o)
 	return;
 }
 
+/* this is what can draw a list of line segments with line
+ * breaks and color changes...  This gets called quite a lot,
+ * so try to make sure it's fast.  There is an inline version
+ * of this in draw_objs(), btw. 
+ */
+void generic_draw(struct game_obj_t *o, GtkWidget *w)
+{
+	int j;
+	int x1, y1, x2, y2;
+	
+	int vpx, vpy;
+
+	vpx = game_state.vp.x;
+	vpy = game_state.vp.y;
+
+	gdk_gc_set_foreground(gc, &huex[o->color]);
+	x1 = o->x + o->v->p[0].x - vpx;
+	y1 = o->y + o->v->p[0].y - vpy;  
+	for (j=0;j<o->v->npoints-1;j++) {
+		if (o->v->p[j+1].x == LINE_BREAK) { /* Break in the line segments. */
+			j+=2;
+			x1 = o->x + o->v->p[j].x - vpx;
+			y1 = o->y + o->v->p[j].y - vpy;  
+		}
+		if (o->v->p[j].x == COLOR_CHANGE) {
+			gdk_gc_set_foreground(gc, &huex[o->v->p[j].y]);
+			j+=1;
+			x1 = o->x + o->v->p[j].x - vpx;
+			y1 = o->y + o->v->p[j].y - vpy;  
+		}
+		x2 = o->x + o->v->p[j+1].x - vpx; 
+		y2 = o->y + o->v->p[j+1].y - vpy;
+		if (x1 > 0 && x2 > 0)
+			wwvi_draw_line(w->window, gc, x1, y1, x2, y2); 
+		x1 = x2;
+		y1 = y2;
+	}
+}
+
+void player_move(struct game_obj_t *o)
+{
+	o->x += o->vx;
+	o->y += o->vy;
+}
+
+
 /*****************************/
 /* Object adding code begins */
 
@@ -444,7 +513,7 @@ static struct game_obj_t *add_generic_object(int x, int y, int vx, int vy,
 	obj_move_func *move_func,
 	obj_draw_func *draw_func,
 	int color, 
-	// struct my_vect_obj *vect, 
+	struct my_vect_obj *vect, 
 	int target,  /* can this object be a target? hit by laser, etc? */
 	char otype, 
 	int alive)
@@ -470,7 +539,7 @@ static struct game_obj_t *add_generic_object(int x, int y, int vx, int vy,
 		o->prev = NULL;
 		o->next = NULL;
 	}
-	// o->v = vect;
+	o->v = vect;
 	o->otype = otype;
 	o->alive = alive;
 	return o;
@@ -557,6 +626,17 @@ void build_terrain()
 
 /* Terrain related code ends here   */
 /************************************/
+
+void init_player()
+{
+	int i;
+
+	the_player = add_generic_object(
+		mapxdim * mapsquarewidth / 2, 
+		mapydim * mapsquarewidth / 2,
+		0, -3, player_move, generic_draw,
+		WHITE, &player_vect, 1, OBJ_TYPE_PLAYER, 1);
+}
 
 /**********************************/
 /* keyboard handling stuff begins */
@@ -876,14 +956,47 @@ void really_quit()
 	exit(1); // probably bad form... oh well.
 }
 
+static inline int onscreen(struct game_obj_t *o)
+{
+	return (o->x >= game_state.vp.x && 
+		o->x <= game_state.vp.x + game_state.vp.width &&
+		o->y >= game_state.vp.y && 
+		o->y <= game_state.vp.y + game_state.vp.height);
+}
+
 static int main_da_expose(GtkWidget *w, GdkEvent *event, gpointer p)
 {
-	wwvi_draw_line(w->window, gc, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+	int tx, ty;
+	int i;
+	struct viewport_t *vp = &game_state.vp;
+        gdk_gc_set_foreground(gc, &huex[WHITE]);
+	wwvi_draw_rectangle(w->window, gc, 0, 
+			vp->xoffset, vp->yoffset, vp->width, vp->height);
+
+	for (i=0;i<=highest_object_number;i++) {
+		if (!game_state.go[i].alive)
+			continue;
+		if (onscreen(&game_state.go[i]))
+			game_state.go[i].draw(&game_state.go[i], main_da); 
+	}
 	return 0;
+}
+
+void move_viewport()
+{
 }
 
 gint advance_game(gpointer data)
 {
+	int i;
+
+	for (i=0;i<=highest_object_number;i++) {
+		if (!game_state.go[i].alive)
+			continue;
+		game_state.go[i].move(&game_state.go[i]);
+	}
+	move_viewport();
+	
 	gdk_threads_enter();
 	gtk_widget_queue_draw(main_da);
 	nframes++;
@@ -907,6 +1020,8 @@ int main(int argc, char *argv[])
 	init_keymap();
 	init_terrain_types();
 	init_vects();
+	init_player();
+	init_game_state(the_player);
 
 	build_terrain();
 
