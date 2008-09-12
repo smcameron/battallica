@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <gdk/gdkkeysyms.h>
+#include <math.h>
 
 
 #define MAX_PLAYER_VX (10)
@@ -38,6 +39,7 @@
 #define SCREEN_WIDTH 800        /* window width, in pixels */
 #define SCREEN_HEIGHT 600       /* window height, in pixels */
 #define MAXOBJS 8500  		/* max objects in the game */
+#define NANGLES 128 
 
 #define OBJ_TYPE_PLAYER 'p'
 
@@ -235,7 +237,52 @@ int real_screen_height;
 GdkColor huex[NCOLORS + NSPARKCOLORS + NRAINBOWCOLORS]; /* all the colors we have to work with are in here */
 
 int nframes = 0;
+int timer = 0;
 struct timeval start_time, end_time;
+
+
+void spin_points(struct my_point_t *points, int npoints, 
+	struct my_point_t **spun_points, int nangles,
+	int originx, int originy)
+{
+	int i, j;
+	double angle;
+	double angle_inc;
+	double startx, starty, start_angle, new_angle, newx, newy;
+	double magnitude, diff;
+
+	*spun_points = (struct my_point_t *) 
+		malloc(sizeof(*spun_points) * npoints * nangles);
+	if (*spun_points == NULL)
+		return;
+
+	angle_inc = (2.0*3.1415927) / (nangles);
+
+	for (i = 0; i < nangles; i++) {
+		angle = angle_inc * (double) i;
+		printf("Rotation angle = %f\n", angle * 180.0/3.1415927);
+		for (j=0;j<npoints;j++) {
+			startx = (double) (points[j].x - originx);
+			starty = (double) (points[j].y - originy);
+			magnitude = sqrt(startx*startx + starty*starty);
+			diff = (startx - 0);
+			if (diff < 0 && diff > -0.00001)
+				start_angle = 0.0;
+			else if (diff > 00 && diff < 0.00001)
+				start_angle = 3.1415927;
+			else
+				start_angle = atan2(starty, startx);
+			new_angle = start_angle + angle;
+			newx = cos(new_angle) * magnitude + originx;
+			newy = sin(new_angle) * magnitude + originy;
+			(*spun_points)[i*npoints + j].x = newx;
+			(*spun_points)[i*npoints + j].y = newy;
+			printf("s=%f,%f, e=%f,%f, angle = %f/%f\n", 
+				startx, starty, newx, newy, 
+				start_angle * 180/3.1415927, new_angle * 360.0 / (2.0*3.1415927)); 
+		}
+	} 
+}
 
 void scaled_line(GdkDrawable *drawable,
 	GdkGC *gc, gint x1, gint y1, gint x2, gint y2)
@@ -611,6 +658,16 @@ void generic_draw(struct game_obj_t *o, GtkWidget *w)
 	}
 }
 
+void player_draw(struct game_obj_t *o, GtkWidget *w)
+{
+	struct my_point_t *temp;
+
+	temp = o->v->p;
+	o->v->p = &temp[(timer % NANGLES) * o->v->npoints];
+	generic_draw(o, w);
+	o->v->p = temp;
+}
+
 void player_move(struct game_obj_t *o)
 {
 	o->x += o->vx;
@@ -683,11 +740,14 @@ static struct game_obj_t *add_generic_object(int x, int y, int vx, int vy,
 void init_player()
 {
 	int i;
+	struct my_point_t *points;
 
+	spin_points(player_vect.p, player_vect.npoints, &points, NANGLES, 0, 0);
+	player_vect.p = points;
 	the_player = add_generic_object(
 		mapxdim * mapsquarewidth / 2, 
 		mapydim * mapsquarewidth / 2,
-		0, -9, player_move, generic_draw,
+		0, 0, player_move, player_draw,
 		YELLOW, &player_vect, 1, OBJ_TYPE_PLAYER, 1);
 }
 
@@ -1031,10 +1091,23 @@ static inline int onscreen(struct game_obj_t *o)
 
 static int generic_draw_terrain(GtkWidget *w, char t, int x, int y)
 {
+	int x2, y2;
         gdk_gc_set_foreground(gc, &huex[terrain_type[t]->color]);
 	wwvi_draw_rectangle(w->window, gc, 0, x+1, y+1, mapsquarewidth-2, mapsquarewidth-2);
-	if (x < 0 || y < 0)
-		return;
+	x2 = x+mapsquarewidth-1;
+	y2 = y+mapsquarewidth-1;
+#if 0
+	wwvi_draw_line(w->window, gc, x+1, y+1, x+15, y+1);
+	wwvi_draw_line(w->window, gc, x+1, y+1, x+1, y+15);
+	wwvi_draw_line(w->window, gc, x2+1, y+1, x2-15, y+1);
+	wwvi_draw_line(w->window, gc, x2+1, y+1, x2+1, y+1);
+	wwvi_draw_line(w->window, gc, x+1, y2+1, x+15, y2+1);
+	wwvi_draw_line(w->window, gc, x+1, y2+1, x+1, y2-15);
+	wwvi_draw_line(w->window, gc, x2+1, y2+1, x2-15, y2+1);
+	wwvi_draw_line(w->window, gc, x2+1, y2+1, x2+1, y2-15);
+#endif
+	// if (x < 0 || y < 0)
+		//return;
 	wwvi_draw_line(w->window, gc, x+30, y+30, x+mapsquarewidth-30, y+mapsquarewidth-30);
 	wwvi_draw_line(w->window, gc, x+30, y+mapsquarewidth-30, x+mapsquarewidth-30, y+30);
 }
@@ -1170,6 +1243,8 @@ void move_viewport()
 gint advance_game(gpointer data)
 {
 	int i;
+
+	timer++;
 
 	for (i=0;i<=highest_object_number;i++) {
 		if (!game_state.go[i].alive)
